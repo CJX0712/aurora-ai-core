@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora AI Core · 浏览器自检</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#ffffff; --bd:#e3e6ea; --tx:#1f2328;
+    --mut:#6b7280; --ok:#0f7b3d; --okbg:#e8f6ec; --bad:#c0392b; --badbg:#fdecea;
+    --acc:#2563eb; --accbg:#eaf1fe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+       line-height:1.6;padding:32px 20px}
+  .wrap{max-width:960px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-0.4px}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:24px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px}
+  .card .n{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+  .card .l{font-size:12px;color:var(--mut);margin-top:2px}
+  .card.g .n{color:var(--ok)} .card.r .n{color:var(--bad)}
+  .grp{background:var(--card);border:1px solid var(--bd);border-radius:10px;
+       margin-bottom:14px;overflow:hidden}
+  .grp h2{margin:0;font-size:14px;padding:12px 16px;background:#fbfcfd;
+          border-bottom:1px solid var(--bd);display:flex;justify-content:space-between}
+  .grp h2 .pill{font-weight:500;font-size:12px;color:var(--mut)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td{padding:9px 16px;border-top:1px solid #f0f2f4;vertical-align:top}
+  tr:first-child td{border-top:none}
+  td.ic{width:26px;color:var(--ok)}
+  td.ic.no{color:var(--bad)}
+  td.v{text-align:right;color:var(--mut);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+       font-size:12px;white-space:nowrap;width:1%}
+  .banner{border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:14px}
+  .banner.ok{background:var(--okbg);color:var(--ok);border:1px solid #bfe3cb}
+  .banner.bad{background:var(--badbg);color:var(--bad);border:1px solid #f3c2bd}
+  .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:28px}
+  code{background:#f0f2f4;padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Aurora AI Core · 浏览器自检</h1>
+  <div class="sub">零依赖 · 零构建 · file:// 直接可跑 —— 每个算法都带可验证的数学不变量</div>
+
+  <div id="banner" class="banner">正在执行不变量校验…</div>
+
+  <div class="cards" id="cards"></div>
+  <div id="groups"></div>
+
+  <div class="foot">
+    Author: <strong>晨星</strong> · MIT License ·
+    完整套件（35 条不变量）请运行 <code>node tests/run.js</code>
+  </div>
+</div>
+
+<script src="src/num.js"></script>
+<script src="src/ml.js"></script>
+<script src="src/dl.js"></script>
+<script src="src/verify.js"></script>
+<script>
+(function(){
+  var N = Aurora.Num, ML = Aurora.ML, DL = Aurora.DL, V = Aurora.Verify;
+  var rows = [];
+  function chk(group, name, fn){
+    var r = {group:group, name:name, ok:false, detail:''};
+    try { var o = fn(); if(o && typeof o==='object'){ r.ok = o.ok!==false; r.detail = o.detail||''; } else { r.ok = !!o; } }
+    catch(e){ r.ok=false; r.detail = String(e && e.message || e); }
+    rows.push(r);
+  }
+
+  // ---- num ----
+  var A=[[4,2,1],[2,5,3],[1,3,6]], L=N.cholesky(A);
+  chk('num','Cholesky 重构 ‖LLᵀ−A‖≈0', function(){ var e=N.choleskyReconError(L,A); return {ok:e<1e-10, detail:e.toExponential(2)}; });
+  var M=[[2,1,0],[1,3,1],[0,1,4]], je=N.jacobiEigen(M);
+  chk('num','Jacobi 特征残差 ‖Av−λv‖', function(){ var e=N.eigenResidual(M,je.eigenvalues,je.eigenvectors); return {ok:e<1e-10, detail:e.toExponential(2)}; });
+  chk('num','特征向量正交 ‖VᵀV−I‖', function(){ var e=N.orthogonalityError(je.eigenvectors); return {ok:e<1e-10, detail:e.toExponential(2)}; });
+  var B=[[1,2],[3,4],[5,6]], sv=N.svd(B);
+  chk('num','SVD 重构 ‖USVᵀ−A‖', function(){ var e=N.svdReconError(sv.U,sv.S,sv.V,B); return {ok:e<1e-9, detail:e.toExponential(2)}; });
+  chk('num','softmax 行和 = 1', function(){ var s=N.softmax([1,2,3]).reduce(function(a,b){return a+b;},0); return {ok:Math.abs(s-1)<1e-12, detail:s.toFixed(12)}; });
+
+  // ---- ml ----
+  var X=N.randn(60,4,11), pca=ML.pca(X,{components:4});
+  chk('ml','PCA 主成分正交', function(){ var e=N.orthogonalityError(pca.components); return {ok:e<1e-9, detail:e.toExponential(2)}; });
+  var g1=N.randn(40,2,21).map(function(r){return [r[0]+5,r[1]+5];});
+  var g2=N.randn(40,2,22).map(function(r){return [r[0]-5,r[1]-5];});
+  var g3=N.randn(40,2,23).map(function(r){return [r[0]+5,r[1]-5];});
+  var Xc=g1.concat(g2,g3), gmm=ML.gmm(Xc,3,{seed:5,maxIter:100});
+  chk('ml','GMM 权重 Σ = 1', function(){ var s=gmm.w.reduce(function(a,b){return a+b;},0); return {ok:Math.abs(s-1)<1e-9, detail:s.toFixed(12)}; });
+  chk('ml','GMM 对数似然单调不减', function(){ for(var i=1;i<gmm.llTrace.length;i++){ if(gmm.llTrace[i]<gmm.llTrace[i-1]-1e-6) return {ok:false,detail:'step '+i}; } return {ok:true}; });
+  var Xl=N.randn(50,3,31), tw=[1.5,-2.0,0.8];
+  var yl=Xl.map(function(r){return r[0]*tw[0]+r[1]*tw[1]+r[2]*tw[2];});
+  var lr=ML.linearRegression(Xl,yl,{lambda:0});
+  chk('ml','线性回归 残差⊥X', function(){ var e=Math.max.apply(null,lr.residualOrthogonality.map(Math.abs)); return {ok:e<1e-7, detail:e.toExponential(2)}; });
+  var Xt=[[0,0],[0,1],[1,0],[1,1]], yt=[0,1,1,0];
+  var tree=ML.decisionTree(Xt,yt,{maxDepth:4});
+  chk('ml','决策树 训练准确率', function(){ var acc=Xt.filter(function(x,i){return tree.predict(x)===yt[i];}).length/4; return {ok:acc>=0.75, detail:acc.toFixed(2)}; });
+
+  // ---- dl ----
+  var Xd=N.randn(5,3,51), Wd=new DL.V(N.randn(3,2,52));
+  var gc=DL.gradCheck(function(p){ return DL.sumAll(DL.tanh(DL.matmul(new DL.V(Xd),p[0]))); },[Wd]);
+  chk('dl','自动微分 梯度检验', function(){ return {ok:gc.maxRel<1e-5, detail:gc.maxRel.toExponential(2)}; });
+  var mha=DL.multiHeadAttention(4,2,{seed:77}), Xa=N.randn(6,4,61);
+  var gca=DL.gradCheck(function(){ return DL.sumAll(mha.forward(Xa)); },mha.params);
+  chk('dl','多头注意力 梯度检验', function(){ return {ok:gca.maxRel<1e-5, detail:gca.maxRel.toExponential(2)}; });
+  var net=DL.mlp([2,6,2],{activation:'tanh',seed:123});
+  var lt=net.train(Xt,yt,{lr:0.1,epochs:4000,batch:4});
+  chk('dl','MLP 损失下降', function(){ return {ok:lt[lt.length-1]<lt[0], detail:lt[0].toFixed(3)+' → '+lt[lt.length-1].toFixed(3)}; });
+  chk('dl','MLP 解 XOR', function(){ var acc=Xt.filter(function(x,i){return net.predict(x)===yt[i];}).length/4; return {ok:acc===1, detail:acc.toFixed(2)}; });
+
+  // ---- micro ----
+  var Mi=V.createMicro();
+  var MA=N.randn(8,5,71), MB=N.randn(5,6,72);
+  var MC=V.microMatmul(Mi,MA,MB);
+  chk('micro','微指令 MAC 重构一致', function(){ var e=N.maxAbs(N.sub(MC,N.matmul(MA,MB))); return {ok:e<1e-9, detail:e.toExponential(2)}; });
+  V.microSoftmaxRows(Mi,N.randn(4,4,73));
+  var rep=Mi.report();
+  chk('micro','微指令不变量全通过', function(){ return {ok:rep.failed===0, detail:'总数 '+rep.total+' / 失败 '+rep.failed}; });
+
+  // ---- render ----
+  var passed=rows.filter(function(r){return r.ok;}).length, failed=rows.length-passed;
+  var banner=document.getElementById('banner');
+  banner.className='banner '+(failed===0?'ok':'bad');
+  banner.textContent = failed===0
+    ? '✅ 全部 '+passed+'/'+rows.length+' 条数学不变量通过 —— 数值精度稳定在机器精度量级'
+    : '❌ '+failed+' 条不变量未通过，详见下方分组';
+
+  document.getElementById('cards').innerHTML =
+    card(rows.length,'不变量总数','') +
+    card(passed,'通过','g') +
+    card(failed,'失败',failed?'r':'g') +
+    card(rep.total,'微指令执行','g');
+
+  function card(n,l,c){ return '<div class="card '+c+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+  var order=['num','ml','dl','micro'], html='';
+  order.forEach(function(g){
+    var rs=rows.filter(function(r){return r.group===g;});
+    var ok=rs.filter(function(r){return r.ok;}).length;
+    html+='<div class="grp"><h2><span>['+g+']</span><span class="pill">'+ok+'/'+rs.length+' 通过</span></h2><table>';
+    rs.forEach(function(r){
+      html+='<tr><td class="ic'+(r.ok?'':' no')+'">'+(r.ok?'✅':'❌')+'</td><td>'+r.name+'</td><td class="v">'+(r.detail||'')+'</td></tr>';
+    });
+    html+='</table></div>';
+  });
+  document.getElementById('groups').innerHTML=html;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "aurora-ai-core",
+  "version": "1.0.0",
+  "description": "世界顶级、可验证、零依赖的 AI 计算内核：数值线性代数 / 机器学习 / 深度学习 / 微指令验证层",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node tests/run.js",
+    "verify": "node tests/run.js"
+  },
+  "keywords": [
+    "ai",
+    "machine-learning",
+    "deep-learning",
+    "transformer",
+    "attention",
+    "autograd",
+    "pca",
+    "gmm",
+    "svm",
+    "numerical-linear-algebra",
+    "verifiable-ai",
+    "zero-dependency"
+  ],
+  "author": "晨星",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
